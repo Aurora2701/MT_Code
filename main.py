@@ -76,12 +76,15 @@ if __name__ == '__main__':
     general_info = ['Timestamp', 'Comments1', 'Comments2']
     data = drop_irrelevant_columns(data, general_info)
 
-    clean_data = clean_dataset(data)
+    # todo: manually clean columns for main character, maybe locations...
+    clean_data = clean_dataset(data)    # todo: check straight-lining...
 
     # todo: check feature cross_correlation
     # todo: create label column
+    # todo: remove parenthesis in genre column + make a list out of comma separated items
     # todo: decide how to treat each NaN
-    # todo: evaluate if you need to merge answers relative to the same game
+    # todo: try merging answers relative to the same game but in separate df, just with the ratings (makes no sense
+    #       to average genre, age of participants, gender, and whatever)
     fig, axes = plt.subplots()
     corr = clean_data.corr(method='spearman', min_periods=0)
     print(corr.shape)
