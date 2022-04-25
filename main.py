@@ -50,13 +50,33 @@ def is_awe(row):  # check if a row of the dataset corresponds to an awe experien
     return True  # passed both checks
 
 
-def clean_dataset(df):
-    indexes = []  # track rows to remove (not an awe experience)
+def lazy(row):
+    answer_streak = 1   # count how many consecutive answers are the same (straight-lining)
+    for i in range(1, 15):
+        if row[i] == row[i-1]:
+            answer_streak = answer_streak + 1
+            if answer_streak >= 7:  # as soon as the streak reaches 7 out of 15, the respondent is considered lazy
+                return True
+    return False
+
+
+def remove_lazy(df):
+    indexes = []  # track rows to remove (respondent did not put effort into the survey)
     num_rows = df.shape[0]
     for i in range(0, num_rows):
-        if not is_awe(df.iloc[i]):
+        if lazy(df.iloc[i]):
             indexes.append(i)
     df = df.drop(indexes, axis=0)
+    print(df.info())
+    return df
+
+
+def create_label(df):
+    labels = []  # list that will become the new column
+    num_rows = df.shape[0]
+    for i in range(0, num_rows):
+        labels.append(is_awe(df.iloc[i]))
+    df['Felt_awe'] = labels
     drop_awe = ['Time_change', 'Slowed_down', 'Smaller_self', 'Oneness_things', 'Humbling', 'Connected_humanity',
                 'Something_greater', 'Chills_goosebumps', 'All_at_once_struggle', 'Mentally_challenged',
                 'Positive_impact', 'Fear_discomfort', 'Peace_of_mind', 'Admiration_game_dev', 'Better_person']
@@ -77,19 +97,19 @@ if __name__ == '__main__':
     data = drop_irrelevant_columns(data, general_info)
 
     # todo: manually clean columns for main character, maybe locations...
-    clean_data = clean_dataset(data)    # todo: check straight-lining...
+    data = remove_lazy(data)
+    awe_data = create_label(data)
 
     # todo: check feature cross_correlation
-    # todo: create label column
     # todo: remove parenthesis in genre column + make a list out of comma separated items
     # todo: decide how to treat each NaN
     # todo: try merging answers relative to the same game but in separate df, just with the ratings (makes no sense
     #       to average genre, age of participants, gender, and whatever)
-    fig, axes = plt.subplots()
-    corr = clean_data.corr(method='spearman', min_periods=0)
-    print(corr.shape)
-    sns.heatmap(corr, annot=True, mask=np.zeros_like(corr, dtype=bool), ax=axes)
-    plt.show()
+#    fig, axes = plt.subplots()
+#    corr = clean_data.corr(method='spearman', min_periods=0)
+#    print(corr.shape)
+#    sns.heatmap(corr, annot=True, mask=np.zeros_like(corr, dtype=bool), ax=axes)
+#    plt.show()
 
 #
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
