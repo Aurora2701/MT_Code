@@ -60,11 +60,27 @@ def lazy(row):
     return False
 
 
+def check_pairs(row):
+    # if the rating is empty, the description should be 'not applicable'
+    # if the rating is not empty, the description should not be 'not applicable'
+    if row['Story_rating'] == np.NaN and row['Story_descr'] != 'not applicable':
+        return False
+    if row['Story_rating'] != np.NaN and row['Story_descr'] == 'not applicable':
+        return False
+    if row['Main_character_rating'] == np.NaN and row['Main_char_descr'] != 'Not applicable':
+        return False
+    if row['Main_character_rating'] != np.NaN and row['Main_char_descr'] == 'Not applicable':
+        return False
+    return True
+
+
 def remove_lazy(df):
     indexes = []  # track rows to remove (respondent did not put effort into the survey)
     num_rows = df.shape[0]
     for i in range(0, num_rows):
         if lazy(df.iloc[i]):
+            indexes.append(i)
+        if not check_pairs(df.iloc[i]):
             indexes.append(i)
     df = df.drop(indexes, axis=0)
     print(df.info())
@@ -96,14 +112,15 @@ if __name__ == '__main__':
     general_info = ['Timestamp', 'Comments1', 'Comments2']
     data = drop_irrelevant_columns(data, general_info)
 
-    # todo: manually clean columns for main character, maybe locations...
     data = remove_lazy(data)
     awe_data = create_label(data)
 
     # todo: check feature cross_correlation
     # todo: remove parenthesis in genre column + make a list out of comma separated items
     # todo: decide how to treat each NaN
-    # todo: try merging answers relative to the same game but in separate df, just with the ratings (makes no sense
+    # so, about the nan, I think they give out the information that "this component is not necessarily that important
+    # therefore I would map it on a 0, to counter the ratings that give 3-5 and make things seem important/positive
+    # todo: try merging answers relative to the same game but in separate df, and just with the ratings (makes no sense
     #       to average genre, age of participants, gender, and whatever)
 #    fig, axes = plt.subplots()
 #    corr = clean_data.corr(method='spearman', min_periods=0)
