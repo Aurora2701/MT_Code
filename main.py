@@ -102,6 +102,30 @@ def create_label(df):
     return df
 
 
+def replace(df):
+    # first, remove the parenthesis because they were just supposed to help respondents
+    df.Genre = df.Genre.str.replace(' \([^)]*\)', '', regex=True)  # grazie stackOverflow
+    # second, convert yes and no into true and false (so we already have boolean types in some answers)
+    df = df.replace({'Study_videogames': 'Yes', 'Work_videogames': 'Yes'}, True)
+    df = df.replace({'Study_videogames': 'No', 'Work_videogames': 'No'}, False)
+    # now the part that I have to do because I ~fucked up~ intentionally wrote the answers in the poll with commas for
+    # legibility and ease of understanding ;)
+    df.Main_char_descr = df.Main_char_descr.str.replace('(, at least partially,) | (, to a certain extent)', ' ',
+                                                        regex=True)
+    df.Story_descr = df.Story_descr.str.replace('weak, contains plot holes', 'weak and containing plot holes')
+    df.Soundtrack_descr = df.Soundtrack_descr.str.replace('on spot, perfect for the game',
+                                                          'on spot; perfect for the game')
+    df.Soundtrack_descr = df.Soundtrack_descr.str.replace('irrelevant, left me indifferent',
+                                                          'irrelevant; left me indifferent')
+    df.Locations = df.Locations.str.replace('woods, forests', 'woods/forests')
+    df.Locations = df.Locations.str.replace('sea, ocean', 'sea/ocean')
+    df.Locations = df.Locations.str.replace('space, spacecraft', 'space/spacecraft')
+    df.Pace_and_difficulty = df.Pace_and_difficulty.str.replace('the game was challenging, sometimes too much',
+                                                                'the game was challenging - sometimes too much')
+    print(df.Pace_and_difficulty)
+    return df
+
+
 def generate_ratings(df):
     to_drop = ['Graphics_descr', 'Story_descr', 'Soundtrack_descr', 'Main_char_descr', 'VR_descr']
     return drop_irrelevant_columns(df, to_drop)
@@ -116,13 +140,7 @@ if __name__ == '__main__':
     data = remove_lazy(data)
     awe_data = create_label(data)
 
-    awe_data.Genre = awe_data.Genre.str.replace(' \([^)]*\)', '', regex=True)   # grazie stackOverflow
-    awe_data = awe_data.replace({'Study_videogames': 'Yes', 'Work_videogames': 'Yes'}, True)
-    awe_data = awe_data.replace({'Study_videogames': 'No', 'Work_videogames': 'No'}, False)
-    # todo: find and replace ",at least partially, " and ", to a certain extent" in character answers;
-    #       "weak, contains plot holes" in story; "on spot, perfect for the game" and "irrelevant, left me indifferent"
-    #       in soundtrack; "woods, forests", "sea, ocean" and "space, spacecraft" in locations; "the game was
-    #       challenging, sometimes too much" in other characteristics
+    awe_data = replace(awe_data)    # adjust text answers
 
     # todo: make objects into categorical values
     # todo: use one-hot encoding for genres, and all descriptions
@@ -134,11 +152,8 @@ if __name__ == '__main__':
 
     # todo: try merging answers relative to the same game but in separate df, and just with the ratings (makes no sense
     #       to average genre, age of participants, gender, and whatever)
-#    fig, axes = plt.subplots()
-#    corr = clean_data.corr(method='spearman', min_periods=0)
-#    print(corr.shape)
-#    sns.heatmap(corr, annot=True, mask=np.zeros_like(corr, dtype=bool), ax=axes)
-#    plt.show()
+
+    # todo: create decision tree I guess
 
 #
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
