@@ -4,6 +4,7 @@
 # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
 import numpy as np
 import pandas as pd
+import re
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -102,7 +103,7 @@ def create_label(df):
 
 
 def generate_ratings(df):
-    to_drop = ['Graphics_descr', 'Story_descr', 'Soundtrack_descr', 'Main_char_descr', 'VR_descr', 'Comments2']
+    to_drop = ['Graphics_descr', 'Story_descr', 'Soundtrack_descr', 'Main_char_descr', 'VR_descr']
     return drop_irrelevant_columns(df, to_drop)
 
 
@@ -115,11 +116,18 @@ if __name__ == '__main__':
     data = remove_lazy(data)
     awe_data = create_label(data)
 
-    # todo: check feature cross_correlation
-    # todo: remove parenthesis in genre column + make a list out of comma separated items
+    awe_data.Genre = awe_data.Genre.str.replace(' \([^)]*\)', '', regex=True)   # grazie stackOverflow
+    awe_data = awe_data.replace({'Study_videogames': 'Yes', 'Work_videogames': 'Yes'}, True)
+    awe_data = awe_data.replace({'Study_videogames': 'No', 'Work_videogames': 'No'}, False)
+
+    # todo: make objects into categorical values
+    # todo: use one-hot encoding for genres, and all descriptions
+    # it's going to be a big dataset but it's probably necessary for decision trees
+
     # todo: decide how to treat each NaN
     # so, about the nan, I think they give out the information that "this component is not necessarily that important
     # therefore I would map it on a 0, to counter the ratings that give 3-5 and make things seem important/positive
+
     # todo: try merging answers relative to the same game but in separate df, and just with the ratings (makes no sense
     #       to average genre, age of participants, gender, and whatever)
 #    fig, axes = plt.subplots()
