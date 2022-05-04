@@ -119,6 +119,10 @@ if __name__ == '__main__':
     awe_data.Genre = awe_data.Genre.str.replace(' \([^)]*\)', '', regex=True)   # grazie stackOverflow
     awe_data = awe_data.replace({'Study_videogames': 'Yes', 'Work_videogames': 'Yes'}, True)
     awe_data = awe_data.replace({'Study_videogames': 'No', 'Work_videogames': 'No'}, False)
+    # todo: find and replace ",at least partially, " and ", to a certain extent" in character answers;
+    #       "weak, contains plot holes" in story; "on spot, perfect for the game" and "irrelevant, left me indifferent"
+    #       in soundtrack; "woods, forests", "sea, ocean" and "space, spacecraft" in locations; "the game was
+    #       challenging, sometimes too much" in other characteristics
 
     # todo: make objects into categorical values
     # todo: use one-hot encoding for genres, and all descriptions
