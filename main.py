@@ -35,13 +35,14 @@ def drop_irrelevant_columns(df, col):
     return df
 
 
-def is_awe(row):  # check if a row of the dataset corresponds to an awe experience (true) or not (false)
+def is_awe(row):
+    # check if a row of the dataset corresponds to an awe experience (true) or not (false)
     if row['Mentally_challenged'] == 1 or row['All_at_once_struggle'] == 1:  # main component of awe is not experienced
-        return False
+        return False    # interesting note: result doesn't change if I use an AND instead of an OR
 
     count = 0  # how many of the important items were rated 1 ('Strongly disagree')
-    for i in range(0, 12):
-        if row[i] == 1:
+    for i in range(0, 12):  # the first 12 columns *of the second section* measure awe
+        if row[i + 5] == 1:
             count = count + 1
     # if we got to the for loop, it means neither of mentally_challenged or struggle were 1, so we have to reduce
     # our "max" count from 12 (total features) to 10. Therefore, if 6 or more of these aspects were rated as ones, maybe
@@ -52,8 +53,8 @@ def is_awe(row):  # check if a row of the dataset corresponds to an awe experien
 
 
 def lazy(row):
-    answer_streak = 1   # count how many consecutive answers are the same (straight-lining)
-    for i in range(1, 15):
+    answer_streak = 1   # count how many consecutive answers *in the second section* are the same (straight-lining)
+    for i in range(6, 20):
         if row[i] == row[i-1]:
             answer_streak = answer_streak + 1
             if answer_streak >= 7:  # as soon as the streak reaches 7 out of 15, the respondent is considered lazy
@@ -89,15 +90,18 @@ def remove_lazy(df):
 
 
 def create_label(df):
-    labels = []  # list that will become the new column
+    labels = []  # list that will become the new column (bool)
     num_rows = df.shape[0]
+
     for i in range(0, num_rows):
-        labels.append(is_awe(df.iloc[i]))
-    df['Felt_awe'] = labels
+        labels.append(is_awe(df.iloc[i]))   # append True if this row corresponds to an awe experience, False otherwise
+
+    df['Felt_awe'] = labels     # add new column to the dataframe
+
     drop_awe = ['Time_change', 'Slowed_down', 'Smaller_self', 'Oneness_things', 'Humbling', 'Connected_humanity',
                 'Something_greater', 'Chills_goosebumps', 'All_at_once_struggle', 'Mentally_challenged',
                 'Positive_impact', 'Fear_discomfort', 'Peace_of_mind', 'Admiration_game_dev', 'Better_person']
-    df = drop_irrelevant_columns(df, drop_awe)
+    df = drop_irrelevant_columns(df, drop_awe)  # the columns about awe are not needed anymore
     print(df.info())
     return df
 
@@ -105,9 +109,11 @@ def create_label(df):
 def replace(df):
     # first, remove the parenthesis because they were just supposed to help respondents
     df.Genre = df.Genre.str.replace(' \([^)]*\)', '', regex=True)  # grazie stackOverflow
+
     # second, convert yes and no into true and false (so we already have boolean types in some answers)
     df = df.replace({'Study_videogames': 'Yes', 'Work_videogames': 'Yes'}, True)
     df = df.replace({'Study_videogames': 'No', 'Work_videogames': 'No'}, False)
+
     # now the part that I have to do because I ~fucked up~ intentionally wrote the answers in the poll with commas for
     # legibility and ease of understanding ;)
     df.Main_char_descr = df.Main_char_descr.str.replace('(, at least partially,) | (, to a certain extent)', ' ',
@@ -122,9 +128,11 @@ def replace(df):
     df.Locations = df.Locations.str.replace('space, spacecraft', 'space/spacecraft')
     df.Pace_and_difficulty = df.Pace_and_difficulty.str.replace('the game was challenging, sometimes too much',
                                                                 'the game was challenging - sometimes too much')
+
     # finally, replace NaNs:
     df = df.replace({'Story_rating': np.nan, 'Main_character_rating': np.nan}, 0)
     df = df.astype({'Story_rating': np.int64, 'Main_character_rating': np.int64})
+
     print(df.info())
     return df
 
