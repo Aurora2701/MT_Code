@@ -122,7 +122,10 @@ def replace(df):
     df.Locations = df.Locations.str.replace('space, spacecraft', 'space/spacecraft')
     df.Pace_and_difficulty = df.Pace_and_difficulty.str.replace('the game was challenging, sometimes too much',
                                                                 'the game was challenging - sometimes too much')
-    print(df.Pace_and_difficulty)
+    # finally, replace NaNs:
+    df = df.replace({'Story_rating': np.nan, 'Main_character_rating': np.nan}, 0)
+    df = df.astype({'Story_rating': np.int64, 'Main_character_rating': np.int64})
+    print(df.info())
     return df
 
 
@@ -145,10 +148,6 @@ if __name__ == '__main__':
     # todo: make objects into categorical values
     # todo: use one-hot encoding for genres, and all descriptions
     # it's going to be a big dataset but it's probably necessary for decision trees
-
-    # todo: decide how to treat each NaN
-    # so, about the nan, I think they give out the information that "this component is not necessarily that important
-    # therefore I would map it on a 0, to counter the ratings that give 3-5 and make things seem important/positive
 
     # todo: try merging answers relative to the same game but in separate df, and just with the ratings (makes no sense
     #       to average genre, age of participants, gender, and whatever)
