@@ -31,14 +31,14 @@ def read_data():
 def drop_irrelevant_columns(df, col):
     # remove columns that are not useful from the dataframe [mostly for debugging purposes]
     df = df.drop(col, axis=1)
-    print(df.info)
+    # print(df.info)
     return df
 
 
-def is_awe(row):
+def is_awe(row):    # uses column indexes
     # check if a row of the dataset corresponds to an awe experience (true) or not (false)
     if row['Mentally_challenged'] == 1 or row['All_at_once_struggle'] == 1:  # main component of awe is not experienced
-        return False    # interesting note: result doesn't change if I use an AND instead of an OR
+        return False  # interesting note: result doesn't change if I use an AND instead of an OR
 
     count = 0  # how many of the important items were rated 1 ('Strongly disagree')
     for i in range(0, 12):  # the first 12 columns *of the second section* measure awe
@@ -52,12 +52,12 @@ def is_awe(row):
     return True  # passed both checks
 
 
-def lazy(row):
-    answer_streak = 1   # count how many consecutive answers *in the second section* are the same (straight-lining)
+def lazy(row):  # uses column indexes
+    answer_streak = 1  # count how many consecutive answers *in the second section* are the same (straight-lining)
     for i in range(6, 20):
-        if row[i] == row[i-1]:
+        if row[i] == row[i - 1]:
             answer_streak = answer_streak + 1
-            if answer_streak >= 7:  # as soon as the streak reaches 7 out of 15, the respondent is considered lazy
+            if answer_streak >= 8:  # as soon as the streak reaches 8 out of 15, the respondent is considered lazy
                 return True
     return False
 
@@ -85,7 +85,7 @@ def remove_lazy(df):
         if not check_pairs(df.iloc[i]):
             indexes.append(i)
     df = df.drop(indexes, axis=0)
-    print(df.info())
+    # print(df.info())
     return df
 
 
@@ -94,15 +94,15 @@ def create_label(df):
     num_rows = df.shape[0]
 
     for i in range(0, num_rows):
-        labels.append(is_awe(df.iloc[i]))   # append True if this row corresponds to an awe experience, False otherwise
+        labels.append(is_awe(df.iloc[i]))  # append True if this row corresponds to an awe experience, False otherwise
 
-    df['Felt_awe'] = labels     # add new column to the dataframe
+    df['Felt_awe'] = labels  # add new column to the dataframe
 
     drop_awe = ['Time_change', 'Slowed_down', 'Smaller_self', 'Oneness_things', 'Humbling', 'Connected_humanity',
                 'Something_greater', 'Chills_goosebumps', 'All_at_once_struggle', 'Mentally_challenged',
                 'Positive_impact', 'Fear_discomfort', 'Peace_of_mind', 'Admiration_game_dev', 'Better_person']
     df = drop_irrelevant_columns(df, drop_awe)  # the columns about awe are not needed anymore
-    print(df.info())
+    # print(df.info())
     return df
 
 
@@ -129,10 +129,26 @@ def replace(df):
     df.Pace_and_difficulty = df.Pace_and_difficulty.str.replace('the game was challenging, sometimes too much',
                                                                 'the game was challenging - sometimes too much')
 
-    # finally, replace NaNs:
-    df = df.replace({'Story_rating': np.nan, 'Main_character_rating': np.nan}, 0)
-    df = df.astype({'Story_rating': np.int64, 'Main_character_rating': np.int64})
+    # finally, replace NaNs (and VR ^^'):
+    df = df.replace({'Story_rating': np.nan, 'Main_character_rating': np.nan, 'VR': 'No'}, 0)
+    df = df.replace({'VR': 'Yes'}, 5)
+    df = df.astype({'Story_rating': np.int64, 'Main_character_rating': np.int64, 'VR': np.int64})
 
+    # print(df.info())
+    return df
+
+
+def make_categories(df):  # uses column indexes
+    # order items alphabetically and make lists
+    objects = ['Genre', 'Graphics_descr', 'Story_descr', 'Soundtrack_descr', 'Main_char_descr', 'Locations',
+               'Pace_and_difficulty', 'VR_descr']
+    for obj in objects:
+        df[obj] = [','.join(sorted(i.split(', '))) for i in df[obj]]
+
+    # turn objects into categories
+    objects.append(['Gender', 'Play_frequency', 'Title'])
+    for obj in objects:
+        df[obj] = df[obj].astype('category')
     print(df.info())
     return df
 
@@ -151,11 +167,11 @@ if __name__ == '__main__':
     data = remove_lazy(data)
     awe_data = create_label(data)
 
-    awe_data = replace(awe_data)    # adjust text answers
+    awe_data = replace(awe_data)  # adjust text answers
 
-    # todo: make objects into categorical values
     # todo: use one-hot encoding for genres, and all descriptions
     # it's going to be a big dataset but it's probably necessary for decision trees
+    final_data = make_categories(awe_data)
 
     # todo: try merging answers relative to the same game but in separate df, and just with the ratings (makes no sense
     #       to average genre, age of participants, gender, and whatever)
