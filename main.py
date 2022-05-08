@@ -4,7 +4,7 @@
 # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
 import numpy as np
 import pandas as pd
-import re
+from sklearn.preprocessing import MultiLabelBinarizer
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -138,17 +138,36 @@ def replace(df):
     return df
 
 
-def make_categories(df):  # uses column indexes
+def make_columns_from_lists(dframe):
+    mlb = MultiLabelBinarizer()
+    res = pd.DataFrame()
+    for i in range(6, 13):  # columns from 'genre' to 'vr_descr'
+        tmp = pd.DataFrame(mlb.fit_transform(dframe.iloc[:, i]), columns=mlb.classes_, index=dframe.index)
+        # this works just fine
+        # print(tmp)
+        res = pd.concat([res, tmp], axis=1)     # does NOT concat... for fuck's sake I'm so dumb... Always forget
+        # assigning the result to a variable
+        # print(res)
+    # res = pd.DataFrame()
+    return res
+
+
+def make_categories_and_one_hot(df):  # uses column indexes
     # order items alphabetically and make lists
     objects = ['Genre', 'Graphics_descr', 'Story_descr', 'Soundtrack_descr', 'Main_char_descr', 'Locations',
                'Pace_and_difficulty', 'VR_descr']
     for obj in objects:
         df[obj] = [','.join(sorted(i.split(', '))) for i in df[obj]]
+        df[obj] = df[obj].str.split(',')    # to make a list again
+        # print(df[obj])
 
     # turn objects into categories
-    objects.append(['Gender', 'Play_frequency', 'Title'])
+    objects = ['Gender', 'Play_frequency', 'Title']
     for obj in objects:
         df[obj] = df[obj].astype('category')
+
+    # before returning, split lists into multiple columns and one-hpt encode them
+    df = make_columns_from_lists(df)
     print(df.info())
     return df
 
@@ -169,9 +188,18 @@ if __name__ == '__main__':
 
     awe_data = replace(awe_data)  # adjust text answers
 
-    # todo: use one-hot encoding for genres, and all descriptions
-    # it's going to be a big dataset but it's probably necessary for decision trees
-    final_data = make_categories(awe_data)
+    # it's going to be a big dataset but it's necessary for decision trees
+    ratings_names = ['Graphics_rating', 'Story_rating', 'Soundtrack_rating', 'Main_character_rating', 'VR']
+    ratings = pd.DataFrame(awe_data[ratings_names])
+    awe_data = drop_irrelevant_columns(awe_data, ratings_names)
+    ratings['label'] = awe_data['Felt_awe']
+    # print(ratings.info())
+    final_data = make_categories_and_one_hot(awe_data)
+
+    # So, at this point, we have a DF with title (?), ratings, and label,
+    # and another DF with almost everything one-hot encoded
+
+    # Time to create the stupid tree(s) and start feeding them data. Which one? We'll see
 
     # todo: try merging answers relative to the same game but in separate df, and just with the ratings (makes no sense
     #       to average genre, age of participants, gender, and whatever)
