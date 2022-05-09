@@ -4,6 +4,7 @@
 # Press Double Shift to search everywhere for classes, files, tool windows, actions, and settings.
 import numpy as np
 import pandas as pd
+import sklearn.tree
 from sklearn.preprocessing import MultiLabelBinarizer
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -38,7 +39,7 @@ def drop_irrelevant_columns(df, col):
 def is_awe(row):    # uses column indexes
     # check if a row of the dataset corresponds to an awe experience (true) or not (false)
     if row['Mentally_challenged'] == 1 or row['All_at_once_struggle'] == 1:  # main component of awe is not experienced
-        return False  # interesting note: result doesn't change if I use an AND instead of an OR
+        return 0  # interesting note: result doesn't change if I use an AND instead of an OR
 
     count = 0  # how many of the important items were rated 1 ('Strongly disagree')
     for i in range(0, 12):  # the first 12 columns *of the second section* measure awe
@@ -48,8 +49,8 @@ def is_awe(row):    # uses column indexes
     # our "max" count from 12 (total features) to 10. Therefore, if 6 or more of these aspects were rated as ones, maybe
     # the experience was not as intense as I would like to know...
     if count >= 6:
-        return False
-    return True  # passed both checks
+        return 0
+    return 1  # passed both checks
 
 
 def lazy(row):  # uses column indexes
@@ -168,13 +169,41 @@ def make_categories_and_one_hot(df):  # uses column indexes
 
     # before returning, split lists into multiple columns and one-hpt encode them
     df = make_columns_from_lists(df)
-    print(df.info())
+    # print(df.info())
     return df
 
 
-def generate_ratings(df):
-    to_drop = ['Graphics_descr', 'Story_descr', 'Soundtrack_descr', 'Main_char_descr', 'VR_descr']
-    return drop_irrelevant_columns(df, to_drop)
+def decision_tree_1(df_ratings):
+    # 1st attempt: just use ratings
+    clf = sklearn.tree.DecisionTreeClassifier(random_state=12)  # all default settings
+    clf2 = sklearn.tree.DecisionTreeClassifier(splitter='random', random_state=12)  # random splitter
+    x = df_ratings[['Graphics_rating', 'Story_rating', 'Soundtrack_rating', 'Main_character_rating', 'VR']]
+    y = df_ratings.label
+    x_train, x_val, y_train, y_val = sklearn.model_selection.train_test_split(x, y, test_size=0.3, random_state=12)
+    clf.fit(x_train, y_train)
+    clf2.fit(x_train, y_train)
+    print(clf.feature_names_in_)
+    print(clf.feature_importances_)
+    print(clf2.feature_names_in_)
+    print(clf2.feature_importances_)
+    return
+
+
+def decision_tree_2(df_ratings):
+    # as 1, but with entropy instead of gini
+    clf = sklearn.tree.DecisionTreeClassifier(criterion='entropy', random_state=12)  # all default settings
+    clf2 = sklearn.tree.DecisionTreeClassifier(criterion='entropy', splitter='random', random_state=12)  # random
+    # splitter
+    x = df_ratings[['Graphics_rating', 'Story_rating', 'Soundtrack_rating', 'Main_character_rating', 'VR']]
+    y = df_ratings.label
+    x_train, x_val, y_train, y_val = sklearn.model_selection.train_test_split(x, y, test_size=0.3, random_state=12)
+    clf.fit(x_train, y_train)
+    clf2.fit(x_train, y_train)
+    print(clf.feature_names_in_)
+    print(clf.feature_importances_)
+    print(clf2.feature_names_in_)
+    print(clf2.feature_importances_)
+    return
 
 
 # Press the green button in the gutter to run the script.
@@ -188,20 +217,21 @@ if __name__ == '__main__':
 
     awe_data = replace(awe_data)  # adjust text answers
 
-    # it's going to be a big dataset but it's necessary for decision trees
+    # split dataset in pure ratings vs other data
     ratings_names = ['Graphics_rating', 'Story_rating', 'Soundtrack_rating', 'Main_character_rating', 'VR']
     ratings = pd.DataFrame(awe_data[ratings_names])
-    awe_data = drop_irrelevant_columns(awe_data, ratings_names)
     ratings['label'] = awe_data['Felt_awe']
-    # print(ratings.info())
+
+    # ratings_names.remove('Title')
+    awe_data = drop_irrelevant_columns(awe_data, ratings_names)
     final_data = make_categories_and_one_hot(awe_data)
 
     # So, at this point, we have a DF with title (?), ratings, and label,
     # and another DF with almost everything one-hot encoded
 
     # Time to create the stupid tree(s) and start feeding them data. Which one? We'll see
-
-    # todo: try merging answers relative to the same game but in separate df, and just with the ratings (makes no sense
+    decision_tree_1(ratings)
+    # todo? try merging answers relative to the same game but in separate df, and just with the ratings (makes no sense
     #       to average genre, age of participants, gender, and whatever)
 
     # todo: create decision tree I guess
