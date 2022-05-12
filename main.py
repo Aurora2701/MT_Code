@@ -6,6 +6,7 @@ import numpy as np
 import pandas as pd
 import sklearn.tree
 from sklearn.preprocessing import MultiLabelBinarizer
+from sklearn.metrics import confusion_matrix, accuracy_score
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -175,34 +176,59 @@ def make_categories_and_one_hot(df):  # uses column indexes
 
 def decision_tree_1(df_ratings):
     # 1st attempt: just use ratings
-    clf = sklearn.tree.DecisionTreeClassifier(random_state=12)  # all default settings
-    clf2 = sklearn.tree.DecisionTreeClassifier(splitter='random', random_state=12)  # random splitter
+    tr_accuracies = []
+    val_accuracies = []
     x = df_ratings[['Graphics_rating', 'Story_rating', 'Soundtrack_rating', 'Main_character_rating', 'VR']]
     y = df_ratings.label
     x_train, x_val, y_train, y_val = sklearn.model_selection.train_test_split(x, y, test_size=0.3, random_state=12)
-    clf.fit(x_train, y_train)
-    clf2.fit(x_train, y_train)
-    print(clf.feature_names_in_)
-    print(clf.feature_importances_)
-    print(clf2.feature_names_in_)
-    print(clf2.feature_importances_)
+
+    for i in range(3, 10):
+        clf = sklearn.tree.DecisionTreeClassifier(max_depth=i, random_state=12)  # all default settings
+        clf.fit(x_train, y_train)
+        y_pred = clf.predict(x_train)
+        y_val_pred = clf.predict(x_val)
+
+        train_acc = accuracy_score(y_train, y_pred)
+        val_acc = accuracy_score(y_val, y_val_pred)
+        tr_accuracies.append(train_acc)
+        val_accuracies.append(val_acc)
+
+    print('Training and validation accuracies per depth: ')     # Best depth before overfitting seems to be 6
+    print(tr_accuracies)
+    print(val_accuracies)
+    # cm = confusion_matrix(y_val, y_pred)
+    # print('Confusion matrix (default): ', cm)
+    # print(clf.feature_names_in_)
+    # print(clf.feature_importances_)
     return
 
 
 def decision_tree_2(df_ratings):
     # as 1, but with entropy instead of gini
-    clf = sklearn.tree.DecisionTreeClassifier(criterion='entropy', random_state=12)  # all default settings
-    clf2 = sklearn.tree.DecisionTreeClassifier(criterion='entropy', splitter='random', random_state=12)  # random
-    # splitter
+    tr_accuracies = []
+    val_accuracies = []
     x = df_ratings[['Graphics_rating', 'Story_rating', 'Soundtrack_rating', 'Main_character_rating', 'VR']]
     y = df_ratings.label
     x_train, x_val, y_train, y_val = sklearn.model_selection.train_test_split(x, y, test_size=0.3, random_state=12)
-    clf.fit(x_train, y_train)
-    clf2.fit(x_train, y_train)
-    print(clf.feature_names_in_)
-    print(clf.feature_importances_)
-    print(clf2.feature_names_in_)
-    print(clf2.feature_importances_)
+
+    for i in range(3, 10):
+        clf = sklearn.tree.DecisionTreeClassifier(criterion='entropy', max_depth=i, random_state=12)
+        clf.fit(x_train, y_train)
+        y_pred = clf.predict(x_train)
+        y_val_pred = clf.predict(x_val)
+
+        train_acc = accuracy_score(y_train, y_pred)
+        val_acc = accuracy_score(y_val, y_val_pred)
+        tr_accuracies.append(train_acc)
+        val_accuracies.append(val_acc)
+
+    print('[Entropy] Training and validation accuracies per depth: ')   # Best depth before overfitting seems to be 7
+    print(tr_accuracies)
+    print(val_accuracies)
+    # cm = confusion_matrix(y_val, y_pred)
+    # print('Confusion matrix (entropy): ', cm)
+    # print(clf.feature_names_in_)
+    # print(clf.feature_importances_)
     return
 
 
@@ -231,10 +257,14 @@ if __name__ == '__main__':
 
     # Time to create the stupid tree(s) and start feeding them data. Which one? We'll see
     decision_tree_1(ratings)
+    decision_tree_2(ratings)
+    # From confusion matrices, the 'best' splitter seems better than the random one, having fewer mispredictions in the
+    # second row (5-29 vs 3-31), so I'm dropping that already
     # todo? try merging answers relative to the same game but in separate df, and just with the ratings (makes no sense
     #       to average genre, age of participants, gender, and whatever)
 
-    # todo: create decision tree I guess
+    # todo: k-fold cross validation - then check feature importance with best model (selected depth)
+    # todo: try including other features
 
 #
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
