@@ -7,6 +7,7 @@ import pandas as pd
 import sklearn.tree
 from sklearn.preprocessing import MultiLabelBinarizer
 from sklearn.metrics import confusion_matrix, accuracy_score
+from sklearn.model_selection import KFold, cross_validate
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -174,59 +175,37 @@ def make_categories_and_one_hot(df):  # uses column indexes
     return df
 
 
-def decision_tree_1(df_ratings):
+def decision_tree(df_ratings, criterion='gini'):
     # 1st attempt: just use ratings
-    tr_accuracies = []
-    val_accuracies = []
-    x = df_ratings[['Graphics_rating', 'Story_rating', 'Soundtrack_rating', 'Main_character_rating', 'VR']]
-    y = df_ratings.label
-    x_train, x_val, y_train, y_val = sklearn.model_selection.train_test_split(x, y, test_size=0.3, random_state=12)
+    tr_accuracies = {}
+    val_accuracies = {}
+    x = df_ratings[['Graphics_rating', 'Story_rating', 'Soundtrack_rating', 'Main_character_rating', 'VR']].to_numpy()
+    y = df_ratings.label.to_numpy()
 
-    for i in range(3, 10):
-        clf = sklearn.tree.DecisionTreeClassifier(max_depth=i, random_state=12)  # all default settings
-        clf.fit(x_train, y_train)
-        y_pred = clf.predict(x_train)
-        y_val_pred = clf.predict(x_val)
+    # x_train, x_val, y_train, y_val = sklearn.model_selection.train_test_split(x, y, test_size=0.3, random_state=12)
+    kf = KFold(7)
 
-        train_acc = accuracy_score(y_train, y_pred)
-        val_acc = accuracy_score(y_val, y_val_pred)
-        tr_accuracies.append(train_acc)
-        val_accuracies.append(val_acc)
+    for i in range(4, 9):      # max depth
+        clf = sklearn.tree.DecisionTreeClassifier(criterion=criterion, max_depth=i, random_state=12)
+        tr_accuracies[i] = []
+        val_accuracies[i] = []
+        for train_index, test_index in kf.split(x, y):
+            x_train, y_train, x_test, y_test = x[train_index], y[train_index], x[test_index], y[test_index]
+            clf.fit(x_train, y_train)
+            y_pred = clf.predict(x_train)
+            y_test_pred = clf.predict(x_test)
 
-    print('Training and validation accuracies per depth: ')     # Best depth before overfitting seems to be 6
-    print(tr_accuracies)
-    print(val_accuracies)
+            train_acc = accuracy_score(y_train, y_pred)
+            val_acc = accuracy_score(y_test, y_test_pred)
+            tr_accuracies[i].append(train_acc)
+            val_accuracies[i].append(val_acc)
+
+        print('Training and validation accuracies at depth ', i, ': ')     # Best depth before overfitting is 6-7
+        print(tr_accuracies[i])
+        print(val_accuracies[i])
+        # todo: averages
     # cm = confusion_matrix(y_val, y_pred)
     # print('Confusion matrix (default): ', cm)
-    # print(clf.feature_names_in_)
-    # print(clf.feature_importances_)
-    return
-
-
-def decision_tree_2(df_ratings):
-    # as 1, but with entropy instead of gini
-    tr_accuracies = []
-    val_accuracies = []
-    x = df_ratings[['Graphics_rating', 'Story_rating', 'Soundtrack_rating', 'Main_character_rating', 'VR']]
-    y = df_ratings.label
-    x_train, x_val, y_train, y_val = sklearn.model_selection.train_test_split(x, y, test_size=0.3, random_state=12)
-
-    for i in range(3, 10):
-        clf = sklearn.tree.DecisionTreeClassifier(criterion='entropy', max_depth=i, random_state=12)
-        clf.fit(x_train, y_train)
-        y_pred = clf.predict(x_train)
-        y_val_pred = clf.predict(x_val)
-
-        train_acc = accuracy_score(y_train, y_pred)
-        val_acc = accuracy_score(y_val, y_val_pred)
-        tr_accuracies.append(train_acc)
-        val_accuracies.append(val_acc)
-
-    print('[Entropy] Training and validation accuracies per depth: ')   # Best depth before overfitting seems to be 7
-    print(tr_accuracies)
-    print(val_accuracies)
-    # cm = confusion_matrix(y_val, y_pred)
-    # print('Confusion matrix (entropy): ', cm)
     # print(clf.feature_names_in_)
     # print(clf.feature_importances_)
     return
@@ -256,14 +235,13 @@ if __name__ == '__main__':
     # and another DF with almost everything one-hot encoded
 
     # Time to create the stupid tree(s) and start feeding them data. Which one? We'll see
-    decision_tree_1(ratings)
-    decision_tree_2(ratings)
+    decision_tree(ratings)
+    # decision_tree(ratings, 'entropy')
     # From confusion matrices, the 'best' splitter seems better than the random one, having fewer mispredictions in the
     # second row (5-29 vs 3-31), so I'm dropping that already
     # todo? try merging answers relative to the same game but in separate df, and just with the ratings (makes no sense
     #       to average genre, age of participants, gender, and whatever)
 
-    # todo: k-fold cross validation - then check feature importance with best model (selected depth)
     # todo: try including other features
 
 #
