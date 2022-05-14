@@ -185,7 +185,7 @@ def decision_tree(df_ratings, criterion='gini'):
     # x_train, x_val, y_train, y_val = sklearn.model_selection.train_test_split(x, y, test_size=0.3, random_state=12)
     kf = KFold(7)
 
-    for i in range(4, 9):      # max depth
+    for i in range(2, 8):      # max depth
         clf = sklearn.tree.DecisionTreeClassifier(criterion=criterion, max_depth=i, random_state=12)
         tr_accuracies[i] = []
         val_accuracies[i] = []
@@ -200,10 +200,13 @@ def decision_tree(df_ratings, criterion='gini'):
             tr_accuracies[i].append(train_acc)
             val_accuracies[i].append(val_acc)
 
-        print('Training and validation accuracies at depth ', i, ': ')     # Best depth before overfitting is 6-7
-        print(tr_accuracies[i])
-        print(val_accuracies[i])
-        # todo: averages
+        avg_tr_acc = np.average(tr_accuracies[i])
+        avg_val_acc = np.average(val_accuracies[i])
+        # print('Training and validation accuracies at depth ', i, ': ')     # Best depth before overfitting is 6-7
+        # print(tr_accuracies[i])
+        # print(val_accuracies[i])
+        print('Average training accuracy at depth ', i, ': ', avg_tr_acc)
+        print('Average validation accuracy at depth ', i, ': ', avg_val_acc)
     # cm = confusion_matrix(y_val, y_pred)
     # print('Confusion matrix (default): ', cm)
     # print(clf.feature_names_in_)
