@@ -146,12 +146,20 @@ def make_columns_from_lists(dframe):
     res = pd.DataFrame()
     for i in range(6, 13):  # columns from 'genre' to 'vr_descr'
         tmp = pd.DataFrame(mlb.fit_transform(dframe.iloc[:, i]), columns=mlb.classes_, index=dframe.index)
-        # this works just fine
-        # print(tmp)
-        res = pd.concat([res, tmp], axis=1)     # does NOT concat... for fuck's sake I'm so dumb... Always forget
-        # assigning the result to a variable
-        # print(res)
-    # res = pd.DataFrame()
+        res = pd.concat([res, tmp], axis=1)
+    return res
+
+
+def get_ratings(source, cols):
+    res = pd.DataFrame(source[cols])
+    res['label'] = awe_data['Felt_awe']
+    res = res.groupby(['Title'], sort=False).mean()     # drops title column automatically
+    res[res['label'] >= 0.5] = 1
+    res[res['label'] != 1] = 0
+    res['label'] = res['label'].astype(np.int64)
+    print(res['label'])
+    print(res.info())
+    # res = res.drop('Title', axis=1)
     return res
 
 
@@ -170,8 +178,9 @@ def make_categories_and_one_hot(df):  # uses column indexes
         df[obj] = df[obj].astype('category')
 
     # before returning, split lists into multiple columns and one-hpt encode them
+    # todo: you're forgetting gender, play freq and title in the returned df - they should probably also be one-hot enc
     df = make_columns_from_lists(df)
-    # print(df.info())
+    print(df.info())
     return df
 
 
@@ -185,7 +194,7 @@ def decision_tree(df_ratings, criterion='gini'):
     # x_train, x_val, y_train, y_val = sklearn.model_selection.train_test_split(x, y, test_size=0.3, random_state=12)
     kf = KFold(7)
 
-    for i in range(2, 8):      # max depth
+    for i in range(1, 6):      # max depth - 3 seems best
         clf = sklearn.tree.DecisionTreeClassifier(criterion=criterion, max_depth=i, random_state=12)
         tr_accuracies[i] = []
         val_accuracies[i] = []
@@ -226,26 +235,25 @@ if __name__ == '__main__':
     awe_data = replace(awe_data)  # adjust text answers
 
     # split dataset in pure ratings vs other data
-    ratings_names = ['Graphics_rating', 'Story_rating', 'Soundtrack_rating', 'Main_character_rating', 'VR']
-    ratings = pd.DataFrame(awe_data[ratings_names])
-    ratings['label'] = awe_data['Felt_awe']
-
-    # ratings_names.remove('Title')
+    ratings_names = ['Title', 'Graphics_rating', 'Story_rating', 'Soundtrack_rating', 'Main_character_rating', 'VR']
+    ratings = get_ratings(awe_data, ratings_names)
+    ratings_names.remove('Title')
     awe_data = drop_irrelevant_columns(awe_data, ratings_names)
-    final_data = make_categories_and_one_hot(awe_data)
+
+    final_data = make_categories_and_one_hot(awe_data)  # todo: split to get just dummies from each column
 
     # So, at this point, we have a DF with title (?), ratings, and label,
     # and another DF with almost everything one-hot encoded
 
     # Time to create the stupid tree(s) and start feeding them data. Which one? We'll see
-    decision_tree(ratings)
+    # decision_tree(ratings)
     # decision_tree(ratings, 'entropy')
     # From confusion matrices, the 'best' splitter seems better than the random one, having fewer mispredictions in the
     # second row (5-29 vs 3-31), so I'm dropping that already
-    # todo? try merging answers relative to the same game but in separate df, and just with the ratings (makes no sense
-    #       to average genre, age of participants, gender, and whatever)
 
-    # todo: try including other features
+    # todo: use select from model. Also, use it multiple times - because trees don't work well with too many features,
+    #       split them in several rating + descriptions tables, and then find feature importance. Finally, test overall
+    #       accuracy with the most important features from each group
 
 #
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
