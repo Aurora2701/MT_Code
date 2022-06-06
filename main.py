@@ -8,6 +8,7 @@ import sklearn.tree
 from sklearn.preprocessing import MultiLabelBinarizer
 from sklearn.metrics import confusion_matrix, accuracy_score
 from sklearn.model_selection import KFold, cross_validate
+from sklearn.inspection import permutation_importance
 import matplotlib.pyplot as plt
 import seaborn as sns
 
@@ -156,9 +157,12 @@ def get_ratings(source, cols):
     #                                 also, we have a problem now that I'm including gender and play frequency ^^'
     # If grouping, ratings are apparently enough to give 100% accuracy already at depth 1
     # If not grouping but with class_weight='balanced', the tree is shitty (probably overfitting) at any depth
-
     res = pd.DataFrame(source[cols])
-    # res['label'] = source['Felt_awe']
+
+    # add one-hot encoded gender, play frequency
+    res = pd.concat([res, pd.get_dummies(source.iloc[:, 1], prefix='is')], axis=1)
+    res = pd.concat([res, pd.get_dummies(source.iloc[:, 2], prefix='plays')], axis=1)
+    res['label'] = source['Felt_awe']
     # res = res.groupby(['Title'], sort=False).mean()     # drops title column automatically
     # res[res['label'] >= 0.5] = 1
     # res[res['label'] != 1] = 0
@@ -193,31 +197,57 @@ def get_description_df(df, column):
     tmp = pd.DataFrame(mlb.fit_transform(df[column]), columns=mlb.classes_, index=df.index)
     res = pd.concat([res, tmp], axis=1)
     res['label'] = df['Felt_awe']
-    print(res.info())
+    # print(res.info())
     return res
 
 
-def decision_tree(df, criterion='gini', n=13):
+def final_decision_tree(df, depth, n=13):
+    # creates the tree at the best depth, and prints feature importance - no, returns most important one(s)
+    X = df.iloc[:, :n].to_numpy()
+    y = df.label.to_numpy()
+    X_train, X_test, y_train, y_test = sklearn.model_selection.train_test_split(X, y, test_size=0.2, random_state=12)
+
+    clf = sklearn.tree.DecisionTreeClassifier(max_depth=depth, random_state=12, class_weight='balanced')
+    clf.fit(X_train, y_train)
+
+    print("Raw importances: ")
+    print(clf.feature_importances_)
+
+    res = permutation_importance(clf, X, y, n_repeats=7, random_state=12)
+    print("Averaged importances: ")
+    print(res.importances_mean)
+
+    # todo: make the figure large enough to include everything
+    df.pop('label')
+    feat_imp = pd.Series(clf.feature_importances_, index=df.columns)
+    feat_imp.nlargest(80).plot(kind='barh')
+    plt.show()
+
+    # todo: return most important column(s) of the dataframe
+    return
+
+
+def decision_trees(df, criterion='gini', n=13):
     # 1st attempt: just use ratings
     # 2nd attempt: use ratings after group by - everything gives accuracy 1, which worries me
     # 3rd attempt: use ratings + demographics - it's decent, although tr_acc=89% and val_acc=65%
     tr_accuracies = {}
     val_accuracies = {}
-    x = df.iloc[:, :n].to_numpy()
+    X = df.iloc[:, :n].to_numpy()
     y = df.label.to_numpy()
     # x_train, x_test, y_train, y_test = sklearn.model_selection.train_test_split(x, y, test_size=0.2, random_state=12)
     kf = KFold(8)
 
-    for i in range(5, 20):      # max depth
+    for i in range(1, 10):      # max depth
         clf = sklearn.tree.DecisionTreeClassifier(criterion=criterion, max_depth=i, random_state=12,
                                                   class_weight='balanced')
         tr_accuracies[i] = []
         val_accuracies[i] = []
-        for train_index, test_index in kf.split(x, y):
-            x_train, y_train, x_test, y_test = x[train_index], y[train_index], x[test_index], y[test_index]
-            clf.fit(x_train, y_train)
-            y_pred = clf.predict(x_train)
-            y_test_pred = clf.predict(x_test)
+        for train_index, test_index in kf.split(X, y):
+            X_train, y_train, X_test, y_test = X[train_index], y[train_index], X[test_index], y[test_index]
+            clf.fit(X_train, y_train)
+            y_pred = clf.predict(X_train)
+            y_test_pred = clf.predict(X_test)
 
             train_acc = accuracy_score(y_train, y_pred)
             val_acc = accuracy_score(y_test, y_test_pred)
@@ -260,23 +290,40 @@ if __name__ == '__main__':
     # split dataset in ratings + demography vs other data
     ratings_names = ['Title', 'Graphics_rating', 'Story_rating', 'Soundtrack_rating', 'Main_character_rating', 'VR']
     ratings = get_ratings(awe_data, ratings_names)
-    # add one-hot encoded gender, play frequency
-    ratings = pd.concat([ratings, pd.get_dummies(awe_data.iloc[:, 1], prefix='is')], axis=1)
-    ratings = pd.concat([ratings, pd.get_dummies(awe_data.iloc[:, 2], prefix='plays')], axis=1)
-    ratings['label'] = awe_data['Felt_awe']
-    print(ratings.info())
+    # print(ratings.info())
     ratings_names.remove('Title')
     awe_data = drop_irrelevant_columns(awe_data, ratings_names)
 
-    # final_data = make_categories_and_one_hot(awe_data)
     graphics_description = get_description_df(awe_data, 'Graphics_descr')
+    story_description = get_description_df(awe_data, 'Story_descr')
+    soundtrack_description = get_description_df(awe_data, 'Soundtrack_descr')
+    main_char_description = get_description_df(awe_data, 'Main_char_descr')
+    locations = get_description_df(awe_data, 'Locations')
+    pace_diff = get_description_df(awe_data, 'Pace_and_difficulty')
+    vr_descr = get_description_df(awe_data, 'VR_descr')
 
-    # So, at this point, we have a DF with title (?), ratings, and label,
-    # and another DF with almost everything one-hot encoded
+    # Time to create the stupid tree(s) and start feeding them data. NOTE: not random forest because I have no
+    # control over it, and it's difficult to interpret
 
-    # Time to create the stupid tree(s) and start feeding them data. Which one? We'll see
-    decision_tree(graphics_description, n=34)   # best max depth = 8
-    decision_tree(ratings)      # best max depth = 15
+    # decision_trees(ratings)      # best max depth = 15
+    # decision_trees(graphics_description, n=34)   # best max depth = 2
+    # decision_trees(story_description, n=43)   # best max depth = 2
+    # decision_trees(soundtrack_description, n=26)   # best max depth = 2
+    # decision_trees(main_char_description, n=36)   # best max depth = 6
+    # decision_trees(locations, n=62)   # best max depth = 4
+    # decision_trees(pace_diff, n=19)   # best max depth = 4
+    # decision_trees(vr_descr, n=4)   # best max depth = 1 and same results (78% tr and val) until 20 so idk maybe
+    # i should drop it
+
+    # final_decision_tree(ratings, depth=15)
+    # final_decision_tree(graphics_description, depth=2, n=34)
+    # final_decision_tree(story_description, depth=2, n=43)
+    # final_decision_tree(soundtrack_description, depth=2, n=26)
+    # final_decision_tree(main_char_description, depth=6, n=36)
+    # final_decision_tree(locations, depth=4, n=62)
+    # final_decision_tree(pace_diff, depth=4, n=19)
+    final_decision_tree(vr_descr, depth=1, n=4)       # probably should drop it, important features are 1 thing and na
+
     # From confusion matrices, the 'best' splitter seems better than the random one, having fewer mispredictions in the
     # second row (5-29 vs 3-31), so I'm dropping that already
 
