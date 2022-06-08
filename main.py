@@ -8,6 +8,7 @@ import sklearn.tree
 from sklearn.preprocessing import MultiLabelBinarizer
 from sklearn.metrics import confusion_matrix, accuracy_score
 from sklearn.model_selection import KFold, cross_validate
+from sklearn.feature_selection import SelectFromModel
 from sklearn.inspection import permutation_importance
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -120,8 +121,8 @@ def replace(df):
 
     # now the part that I have to do because I ~fucked up~ intentionally wrote the answers in the poll with commas for
     # legibility and ease of understanding ;)
-    df.Main_char_descr = df.Main_char_descr.str.replace('(, at least partially,) | (, to a certain extent)', ' ',
-                                                        regex=True)
+    df.Main_char_descr = df.Main_char_descr.str.replace(', at least partially,', ' ', regex=True)
+    df.Main_char_descr = df.Main_char_descr.str.replace(', to a certain extent', ' ', regex=True)
     df.Story_descr = df.Story_descr.str.replace('weak, contains plot holes', 'weak and containing plot holes')
     df.Soundtrack_descr = df.Soundtrack_descr.str.replace('on spot, perfect for the game',
                                                           'on spot; perfect for the game')
@@ -158,6 +159,11 @@ def get_ratings(source, cols):
     # If grouping, ratings are apparently enough to give 100% accuracy already at depth 1
     # If not grouping but with class_weight='balanced', the tree is shitty (probably overfitting) at any depth
     res = pd.DataFrame(source[cols])
+
+    # todo: forgetting age, need to make ranges
+    objects = ['Gender', 'Play_frequency']      # title not a category for now
+    for obj in objects:
+        awe_data[obj] = awe_data[obj].astype('category')
 
     # add one-hot encoded gender, play frequency
     res = pd.concat([res, pd.get_dummies(source.iloc[:, 1], prefix='is')], axis=1)
@@ -213,18 +219,32 @@ def final_decision_tree(df, depth, n=13):
     print("Raw importances: ")
     print(clf.feature_importances_)
 
-    res = permutation_importance(clf, X, y, n_repeats=7, random_state=12)
-    print("Averaged importances: ")
-    print(res.importances_mean)
+    # This would make sense with high-cardinality features, but my features are either 0-1 coz of 1-hot encoding, or on
+    # a scale from 0 to 5, so don't need it
+    # res = permutation_importance(clf, X, y, n_repeats=7, random_state=12)
+    # print("Averaged importances: ")
+    # print(res.importances_mean)
 
-    # todo: make the figure large enough to include everything
-    df.pop('label')
-    feat_imp = pd.Series(clf.feature_importances_, index=df.columns)
-    feat_imp.nlargest(80).plot(kind='barh')
-    plt.show()
+    # feat_imp = pd.Series(clf.feature_importances_, index=df.columns)
+    # feat_imp.nlargest(80).plot(kind='barh')
+    # plt.show()
 
-    # todo: return most important column(s) of the dataframe
-    return
+    # todo: return most important column(s) of the dataframe (importance >= 0.1)
+    # non so se sentirmi un genio o una cretina, visto che ho fatto esattamente quello che fa SelectFromModel, ma sicco-
+    # me ero troppo pigra per cercare come usarlo, me lo sono riscritto a modo mio (ma probabilmente peggio di lui)
+    model = SelectFromModel(clf, prefit=True)
+    X_new = model.transform(X)
+    support = model.get_support(indices=True)
+    features_names = []
+    for i in support:
+        features_names.append(df.columns[i])
+
+    important_features = pd.DataFrame(X_new, columns=features_names)
+    # for i in range(0, n):
+    #     if clf.feature_importances_[i] >= 0.1:
+    #         pd.concat(important_features, df.iloc[:, i], axis=1)
+    print(important_features.info())
+    return important_features
 
 
 def decision_trees(df, criterion='gini', n=13):
@@ -276,16 +296,9 @@ if __name__ == '__main__':
     data = read_data()
     general_info = ['Timestamp', 'Comments1', 'Comments2']
     data = drop_irrelevant_columns(data, general_info)
-
     data = remove_lazy(data)
     awe_data = create_label(data)
-
     awe_data = replace(awe_data)  # adjust text answers
-
-    # todo: forgetting age, need to make ranges
-    objects = ['Gender', 'Play_frequency']      # title not a category for now
-    for obj in objects:
-        awe_data[obj] = awe_data[obj].astype('category')
 
     # split dataset in ratings + demography vs other data
     ratings_names = ['Title', 'Graphics_rating', 'Story_rating', 'Soundtrack_rating', 'Main_character_rating', 'VR']
@@ -294,6 +307,7 @@ if __name__ == '__main__':
     ratings_names.remove('Title')
     awe_data = drop_irrelevant_columns(awe_data, ratings_names)
 
+    description_columns = []
     graphics_description = get_description_df(awe_data, 'Graphics_descr')
     story_description = get_description_df(awe_data, 'Story_descr')
     soundtrack_description = get_description_df(awe_data, 'Soundtrack_descr')
@@ -309,25 +323,45 @@ if __name__ == '__main__':
     # decision_trees(graphics_description, n=34)   # best max depth = 2
     # decision_trees(story_description, n=43)   # best max depth = 2
     # decision_trees(soundtrack_description, n=26)   # best max depth = 2
-    # decision_trees(main_char_description, n=36)   # best max depth = 6
+    # decision_trees(main_char_description, n=35)   # best max depth = 6
     # decision_trees(locations, n=62)   # best max depth = 4
     # decision_trees(pace_diff, n=19)   # best max depth = 4
     # decision_trees(vr_descr, n=4)   # best max depth = 1 and same results (78% tr and val) until 20 so idk maybe
     # i should drop it
 
+    important_features_df = pd.DataFrame()
+    important_features_df = pd.concat([important_features_df, final_decision_tree(ratings, depth=15)], axis=1)
+    important_features_df = pd.concat(
+        [important_features_df, final_decision_tree(graphics_description, depth=2, n=34)], axis=1)
+    important_features_df = pd.concat(
+        [important_features_df, final_decision_tree(story_description, depth=2, n=43)], axis=1)
+    important_features_df = pd.concat(
+        [important_features_df, final_decision_tree(soundtrack_description, depth=2, n=26)], axis=1)
+    important_features_df = pd.concat(
+        [important_features_df, final_decision_tree(main_char_description, depth=6, n=35)], axis=1)
+    important_features_df = pd.concat([important_features_df, final_decision_tree(locations, depth=4, n=62)], axis=1)
+    important_features_df = pd.concat([important_features_df, final_decision_tree(pace_diff, depth=4, n=19)], axis=1)
+
+    important_features_df['label'] = ratings.label
+    print(important_features_df.info())
+
+    # decision_trees(important_features_df, n=important_features_df.shape[1])  # todo: fix weird error
     # final_decision_tree(ratings, depth=15)
     # final_decision_tree(graphics_description, depth=2, n=34)
     # final_decision_tree(story_description, depth=2, n=43)
     # final_decision_tree(soundtrack_description, depth=2, n=26)
-    # final_decision_tree(main_char_description, depth=6, n=36)
+    # final_decision_tree(main_char_description, depth=6, n=35)
     # final_decision_tree(locations, depth=4, n=62)
     # final_decision_tree(pace_diff, depth=4, n=19)
-    final_decision_tree(vr_descr, depth=1, n=4)       # probably should drop it, important features are 1 thing and na
+    # final_decision_tree(vr_descr, depth=1, n=4)       # probably should drop it, important features are 1 thing and na
 
+    # todo but it's just a reminder: see accuracy of big df (supposed to be good). Features are the most informative for
+    #  the ML model, but see average values in each column to understand in what way they are important (better if they'
+    #  re there or not? If rating avg is 4 -> good, if 1 hot thingy avg is 0.002, means it's probably there by accident)
     # From confusion matrices, the 'best' splitter seems better than the random one, having fewer mispredictions in the
     # second row (5-29 vs 3-31), so I'm dropping that already
 
-    # todo: use select from model. Also, use it multiple times - because trees don't work well with too many features,
+    # done: use select from model. Also, use it multiple times - because trees don't work well with too many features,
     #       split them in several rating + descriptions tables, and then find feature importance. Finally, test overall
     #       accuracy with the most important features from each group
 
