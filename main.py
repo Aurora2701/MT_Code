@@ -207,10 +207,11 @@ def get_description_df(df, column):
     return res
 
 
-def final_decision_tree(df, depth, n=13):
+def final_decision_tree(df, y, depth):
     # creates the tree at the best depth, and prints feature importance - no, returns most important one(s)
+    n = df.shape[1] - 1
     X = df.iloc[:, :n].to_numpy()
-    y = df.label.to_numpy()
+    y = y.to_numpy()
     X_train, X_test, y_train, y_test = sklearn.model_selection.train_test_split(X, y, test_size=0.2, random_state=12)
 
     clf = sklearn.tree.DecisionTreeClassifier(max_depth=depth, random_state=12, class_weight='balanced')
@@ -247,14 +248,15 @@ def final_decision_tree(df, depth, n=13):
     return important_features
 
 
-def decision_trees(df, criterion='gini', n=13):
+def decision_trees(df, y, criterion='gini'):
     # 1st attempt: just use ratings
     # 2nd attempt: use ratings after group by - everything gives accuracy 1, which worries me
     # 3rd attempt: use ratings + demographics - it's decent, although tr_acc=89% and val_acc=65%
+    n = df.shape[1] - 1
     tr_accuracies = {}
     val_accuracies = {}
     X = df.iloc[:, :n].to_numpy()
-    y = df.label.to_numpy()
+    y = y.to_numpy()
     # x_train, x_test, y_train, y_test = sklearn.model_selection.train_test_split(x, y, test_size=0.2, random_state=12)
     kf = KFold(8)
 
@@ -303,11 +305,10 @@ if __name__ == '__main__':
     # split dataset in ratings + demography vs other data
     ratings_names = ['Title', 'Graphics_rating', 'Story_rating', 'Soundtrack_rating', 'Main_character_rating', 'VR']
     ratings = get_ratings(awe_data, ratings_names)
-    # print(ratings.info())
+    print(ratings.info())
     ratings_names.remove('Title')
     awe_data = drop_irrelevant_columns(awe_data, ratings_names)
 
-    description_columns = []
     graphics_description = get_description_df(awe_data, 'Graphics_descr')
     story_description = get_description_df(awe_data, 'Story_descr')
     soundtrack_description = get_description_df(awe_data, 'Soundtrack_descr')
@@ -316,44 +317,46 @@ if __name__ == '__main__':
     pace_diff = get_description_df(awe_data, 'Pace_and_difficulty')
     vr_descr = get_description_df(awe_data, 'VR_descr')
 
+    label = awe_data['Felt_awe']
+
     # Time to create the stupid tree(s) and start feeding them data. NOTE: not random forest because I have no
     # control over it, and it's difficult to interpret
 
-    # decision_trees(ratings)      # best max depth = 15
-    # decision_trees(graphics_description, n=34)   # best max depth = 2
-    # decision_trees(story_description, n=43)   # best max depth = 2
-    # decision_trees(soundtrack_description, n=26)   # best max depth = 2
-    # decision_trees(main_char_description, n=35)   # best max depth = 6
-    # decision_trees(locations, n=62)   # best max depth = 4
-    # decision_trees(pace_diff, n=19)   # best max depth = 4
-    # decision_trees(vr_descr, n=4)   # best max depth = 1 and same results (78% tr and val) until 20 so idk maybe
+    # decision_trees(ratings, y=label)      # best max depth = 15
+    # decision_trees(graphics_description, y=label)   # best max depth = 2
+    # decision_trees(story_description, y=label)   # best max depth = 2
+    # decision_trees(soundtrack_description, y=label)   # best max depth = 2
+    # decision_trees(main_char_description, y=label)   # best max depth = 6
+    # decision_trees(locations, y=label)   # best max depth = 4
+    # decision_trees(pace_diff, y=label)   # best max depth = 4
+    # decision_trees(vr_descr, y=label)   # best max depth = 1 and same results (78% tr and val) until 20 so idk maybe
     # i should drop it
 
     important_features_df = pd.DataFrame()
-    important_features_df = pd.concat([important_features_df, final_decision_tree(ratings, depth=15)], axis=1)
+    important_features_df = pd.concat([important_features_df, final_decision_tree(ratings, depth=15, y=label)], axis=1)
     important_features_df = pd.concat(
-        [important_features_df, final_decision_tree(graphics_description, depth=2, n=34)], axis=1)
+        [important_features_df, final_decision_tree(graphics_description, depth=2, y=label)], axis=1)
     important_features_df = pd.concat(
-        [important_features_df, final_decision_tree(story_description, depth=2, n=43)], axis=1)
+        [important_features_df, final_decision_tree(story_description, depth=2, y=label)], axis=1)
     important_features_df = pd.concat(
-        [important_features_df, final_decision_tree(soundtrack_description, depth=2, n=26)], axis=1)
+        [important_features_df, final_decision_tree(soundtrack_description, depth=2, y=label)], axis=1)
     important_features_df = pd.concat(
-        [important_features_df, final_decision_tree(main_char_description, depth=6, n=35)], axis=1)
-    important_features_df = pd.concat([important_features_df, final_decision_tree(locations, depth=4, n=62)], axis=1)
-    important_features_df = pd.concat([important_features_df, final_decision_tree(pace_diff, depth=4, n=19)], axis=1)
+        [important_features_df, final_decision_tree(main_char_description, depth=6, y=label)], axis=1)
+    important_features_df = pd.concat([important_features_df, final_decision_tree(locations, depth=4, y=label)], axis=1)
+    important_features_df = pd.concat([important_features_df, final_decision_tree(pace_diff, depth=4, y=label)], axis=1)
 
-    important_features_df['label'] = ratings.label
     print(important_features_df.info())
 
-    # decision_trees(important_features_df, n=important_features_df.shape[1])  # todo: fix weird error
+    decision_trees(important_features_df, y=label)  # overfitting starts at depth 3
+    final_decision_tree(important_features_df, depth=2, y=label)
     # final_decision_tree(ratings, depth=15)
-    # final_decision_tree(graphics_description, depth=2, n=34)
-    # final_decision_tree(story_description, depth=2, n=43)
-    # final_decision_tree(soundtrack_description, depth=2, n=26)
-    # final_decision_tree(main_char_description, depth=6, n=35)
-    # final_decision_tree(locations, depth=4, n=62)
-    # final_decision_tree(pace_diff, depth=4, n=19)
-    # final_decision_tree(vr_descr, depth=1, n=4)       # probably should drop it, important features are 1 thing and na
+    # final_decision_tree(graphics_description, depth=2)
+    # final_decision_tree(story_description, depth=2)
+    # final_decision_tree(soundtrack_description, depth=2)
+    # final_decision_tree(main_char_description, depth=6)
+    # final_decision_tree(locations, depth=4)
+    # final_decision_tree(pace_diff, depth=4)
+    # final_decision_tree(vr_descr, depth=1)       # probably should drop it, important features are 1 thing and na
 
     # todo but it's just a reminder: see accuracy of big df (supposed to be good). Features are the most informative for
     #  the ML model, but see average values in each column to understand in what way they are important (better if they'
