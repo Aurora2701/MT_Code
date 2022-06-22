@@ -209,7 +209,7 @@ def get_description_df(df, column):
 
 def final_decision_tree(df, y, depth):
     # creates the tree at the best depth, and prints feature importance - no, returns most important one(s)
-    n = df.shape[1] - 1
+    n = df.shape[1] - 1     # -1 because out of n columns, from 0 to n-1, one is the label
     X = df.iloc[:, :n].to_numpy()
     y = y.to_numpy()
     X_train, X_test, y_train, y_test = sklearn.model_selection.train_test_split(X, y, test_size=0.2, random_state=12)
@@ -226,24 +226,14 @@ def final_decision_tree(df, y, depth):
     # print("Averaged importances: ")
     # print(res.importances_mean)
 
-    # feat_imp = pd.Series(clf.feature_importances_, index=df.columns)
-    # feat_imp.nlargest(80).plot(kind='barh')
-    # plt.show()
-
-    # todo: return most important column(s) of the dataframe (importance >= 0.1)
-    # non so se sentirmi un genio o una cretina, visto che ho fatto esattamente quello che fa SelectFromModel, ma sicco-
-    # me ero troppo pigra per cercare come usarlo, me lo sono riscritto a modo mio (ma probabilmente peggio di lui)
-    model = SelectFromModel(clf, prefit=True)
-    X_new = model.transform(X)
-    support = model.get_support(indices=True)
+    model = SelectFromModel(clf, prefit=True, threshold="1.8*mean")
+    X_new = model.transform(X)      # reduce X to selected features
+    support = model.get_support(indices=True)       # get indices of selected features
     features_names = []
     for i in support:
-        features_names.append(df.columns[i])
+        features_names.append(df.columns[i])        # get names of selected features for columns
 
-    important_features = pd.DataFrame(X_new, columns=features_names)
-    # for i in range(0, n):
-    #     if clf.feature_importances_[i] >= 0.1:
-    #         pd.concat(important_features, df.iloc[:, i], axis=1)
+    important_features = pd.DataFrame(X_new, columns=features_names)        # df with selected features
     print(important_features.info())
     return important_features
 
@@ -347,8 +337,9 @@ if __name__ == '__main__':
 
     print(important_features_df.info())
 
-    decision_trees(important_features_df, y=label)  # overfitting starts at depth 3
-    final_decision_tree(important_features_df, depth=2, y=label)
+    # decision_trees(important_features_df, y=label)  # overfitting starts at depth 3
+    # final_decision_tree(important_features_df, depth=2, y=label)
+
     # final_decision_tree(ratings, depth=15)
     # final_decision_tree(graphics_description, depth=2)
     # final_decision_tree(story_description, depth=2)
