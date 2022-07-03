@@ -40,14 +40,15 @@ def drop_irrelevant_columns(df, col):
     return df
 
 
-def is_awe(row):    # uses column indexes
-    # check if a row of the dataset corresponds to an awe experience (true) or not (false)
+def is_awe(row):
+    # check if a row of the dataset corresponds to an awe experience (1) or not (0)
     if row['Mentally_challenged'] == 1 or row['All_at_once_struggle'] == 1:  # main component of awe is not experienced
         return 0  # interesting note: result doesn't change if I use an AND instead of an OR
+    # EDIT: it does change... 125 ones with and, 108 with or
 
-    count = 0  # how many of the important items were rated 1 ('Strongly disagree')
+    count = 0  # how many of the relevant items were rated 1 ('Strongly disagree')
     for i in range(0, 12):  # the first 12 columns *of the second section* measure awe
-        if row[i + 5] == 1:
+        if row[i + 5] == 1:     # i + 5 to skip the answers of the first section
             count = count + 1
     # if we got to the for loop, it means neither of mentally_challenged or struggle were 1, so we have to reduce
     # our "max" count from 12 (total features) to 10. Therefore, if 6 or more of these aspects were rated as ones, maybe
@@ -87,6 +88,7 @@ def remove_lazy(df):
     for i in range(0, num_rows):
         if lazy(df.iloc[i]):
             indexes.append(i)
+            continue
         if not check_pairs(df.iloc[i]):
             indexes.append(i)
     df = df.drop(indexes, axis=0)
@@ -108,6 +110,7 @@ def create_label(df):
                 'Positive_impact', 'Fear_discomfort', 'Peace_of_mind', 'Admiration_game_dev', 'Better_person']
     df = drop_irrelevant_columns(df, drop_awe)  # the columns about awe are not needed anymore
     # print(df.info())
+    print("Number of awe experiences: ", labels.count(1))
     return df
 
 
@@ -136,21 +139,12 @@ def replace(df):
 
     # finally, replace NaNs (and VR ^^'):
     df = df.replace({'Story_rating': np.nan, 'Main_character_rating': np.nan, 'VR': 'No'}, 0)
-    df = df.replace({'VR': 'Yes'}, 5)
+    df = df.replace({'VR': 'Yes'}, True)
+    df = df.replace({'VR': 'No'}, False)
     df = df.astype({'Story_rating': np.int64, 'Main_character_rating': np.int64, 'VR': np.int64})
 
     # print(df.info())
     return df
-
-
-def make_columns_from_lists(dframe, range_min=6, range_max=13):
-    mlb = MultiLabelBinarizer()
-    res = pd.DataFrame()
-    for i in range(range_min, range_max):  # columns from 'genre' = 6 to 'vr_descr' = 12
-        tmp = pd.DataFrame(mlb.fit_transform(dframe.iloc[:, i]), columns=mlb.classes_, index=dframe.index)
-        res = pd.concat([res, tmp], axis=1)
-    print(res.info())
-    return res
 
 
 def get_ratings(source, cols):
@@ -160,37 +154,20 @@ def get_ratings(source, cols):
     # If not grouping but with class_weight='balanced', the tree is shitty (probably overfitting) at any depth
     res = pd.DataFrame(source[cols])
 
-    # todo: forgetting age, need to make ranges
     objects = ['Gender', 'Play_frequency']      # title not a category for now
     for obj in objects:
         awe_data[obj] = awe_data[obj].astype('category')
 
-    # add one-hot encoded gender, play frequency
-    res = pd.concat([res, pd.get_dummies(source.iloc[:, 1], prefix='is')], axis=1)
+    # add one-hot encoded [gender,] play frequency
     res = pd.concat([res, pd.get_dummies(source.iloc[:, 2], prefix='plays')], axis=1)
-    res['label'] = source['Felt_awe']
+    # res = pd.concat([res, pd.get_dummies(source.iloc[:, 1], prefix='is')], axis=1)
+    # res['label'] = source['Felt_awe']
     # res = res.groupby(['Title'], sort=False).mean()     # drops title column automatically
     # res[res['label'] >= 0.5] = 1
     # res[res['label'] != 1] = 0
     # res['label'] = res['label'].astype(np.int64)
     res = res.drop('Title', axis=1)
     return res
-
-
-def make_categories_and_one_hot(df):  # uses column indexes
-    # order items alphabetically and make lists
-    objects = ['Genre', 'Graphics_descr', 'Story_descr', 'Soundtrack_descr', 'Main_char_descr', 'Locations',
-               'Pace_and_difficulty', 'VR_descr']
-    for obj in objects:
-        df[obj] = [','.join(sorted(i.split(', '))) for i in df[obj]]
-        df[obj] = df[obj].str.split(',')    # to make a list again
-        # print(df[obj])
-
-    # before returning, split lists into multiple columns and one-hpt encode them
-    # todo: you're forgetting gender, play freq and title in the returned df - they should probably also be one-hot enc
-    df = make_columns_from_lists(df)
-    print(df.info())
-    return df
 
 
 def get_description_df(df, column):
@@ -202,7 +179,7 @@ def get_description_df(df, column):
     res = pd.DataFrame()
     tmp = pd.DataFrame(mlb.fit_transform(df[column]), columns=mlb.classes_, index=df.index)
     res = pd.concat([res, tmp], axis=1)
-    res['label'] = df['Felt_awe']
+    # res['label'] = df['Felt_awe']
     # print(res.info())
     return res
 
@@ -226,7 +203,7 @@ def final_decision_tree(df, y, depth):
     # print("Averaged importances: ")
     # print(res.importances_mean)
 
-    model = SelectFromModel(clf, prefit=True, threshold="1.8*mean")
+    model = SelectFromModel(clf, prefit=True, threshold="mean")
     X_new = model.transform(X)      # reduce X to selected features
     support = model.get_support(indices=True)       # get indices of selected features
     features_names = []
@@ -299,6 +276,7 @@ if __name__ == '__main__':
     ratings_names.remove('Title')
     awe_data = drop_irrelevant_columns(awe_data, ratings_names)
 
+    genre = get_description_df(awe_data, 'Genre')
     graphics_description = get_description_df(awe_data, 'Graphics_descr')
     story_description = get_description_df(awe_data, 'Story_descr')
     soundtrack_description = get_description_df(awe_data, 'Soundtrack_descr')
@@ -313,6 +291,7 @@ if __name__ == '__main__':
     # control over it, and it's difficult to interpret
 
     # decision_trees(ratings, y=label)      # best max depth = 15
+    # decision_trees(genre, y=label)      # best max depth = 1
     # decision_trees(graphics_description, y=label)   # best max depth = 2
     # decision_trees(story_description, y=label)   # best max depth = 2
     # decision_trees(soundtrack_description, y=label)   # best max depth = 2
@@ -324,6 +303,7 @@ if __name__ == '__main__':
 
     important_features_df = pd.DataFrame()
     important_features_df = pd.concat([important_features_df, final_decision_tree(ratings, depth=15, y=label)], axis=1)
+    important_features_df = pd.concat([important_features_df, final_decision_tree(genre, depth=1, y=label)], axis=1)
     important_features_df = pd.concat(
         [important_features_df, final_decision_tree(graphics_description, depth=2, y=label)], axis=1)
     important_features_df = pd.concat(
@@ -337,8 +317,8 @@ if __name__ == '__main__':
 
     print(important_features_df.info())
 
-    # decision_trees(important_features_df, y=label)  # overfitting starts at depth 3
-    # final_decision_tree(important_features_df, depth=2, y=label)
+    decision_trees(important_features_df, y=label)  # overfitting starts at depth 3
+    final_decision_tree(important_features_df, depth=2, y=label)    # 65% val accuracy
 
     # final_decision_tree(ratings, depth=15)
     # final_decision_tree(graphics_description, depth=2)
