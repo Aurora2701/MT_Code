@@ -194,7 +194,7 @@ def final_decision_tree(df, y, depth, msl=1):
 
     plt.figure(figsize=[12.8, 7.2])
     plot_tree(clf, feature_names=df.columns, class_names=["Non awe", "Awe"], label='none', impurity=False,
-              filled=True, proportion=True, rounded=True, fontsize=7)
+              filled=True, proportion=True, rounded=True, fontsize=8)
     plt.show()
     print(important_features.info())
     print("Training accuracy: ", accuracy_score(y_train, clf.predict(X_train)))
@@ -290,13 +290,13 @@ if __name__ == '__main__':
                                       axis=1)
     important_features_df = pd.concat([important_features_df, final_decision_tree(genre, depth=1, y=label)], axis=1)
     important_features_df = pd.concat(
-        [important_features_df, final_decision_tree(graphics_description, msl=2, y=label)], axis=1)
+        [important_features_df, final_decision_tree(graphics_description, depth=2, y=label)], axis=1)
     important_features_df = pd.concat(
         [important_features_df, final_decision_tree(story_description, depth=2, y=label)], axis=1)
     important_features_df = pd.concat(
         [important_features_df, final_decision_tree(soundtrack_description, depth=2, y=label)], axis=1)
     important_features_df = pd.concat(
-        [important_features_df, final_decision_tree(main_char_description, depth=4, msl=5, y=label)], axis=1)
+        [important_features_df, final_decision_tree(main_char_description, depth=4, y=label)], axis=1)
     important_features_df = pd.concat([important_features_df, final_decision_tree(locations, depth=4, y=label)], axis=1)
     important_features_df = pd.concat([important_features_df, final_decision_tree(pace_diff, depth=4, y=label)], axis=1)
     # important_features_df = pd.concat([important_features_df, final_decision_tree(vr_descr, depth=1, y=label)], axis=1)
